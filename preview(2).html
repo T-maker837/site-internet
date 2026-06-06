@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
+  <title>📡 PhoneTracker</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+  <script src="config.js"></script>
+  <style>
+    :root {
+      --bg:#060b17; --card:rgba(255,255,255,0.05); --border:rgba(255,255,255,0.09);
+      --accent:#818cf8; --green:#4ade80; --red:#f87171; --orange:#fbbf24;
+      --text:#f1f5f9; --muted:#94a3b8; --dim:#475569;
+    }
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body{
+      font-family:'Inter',sans-serif; background:var(--bg); color:var(--text);
+      min-height:100vh; display:flex; align-items:center; justify-content:center;
+      padding:24px 16px;
+      background-image:
+        radial-gradient(ellipse 60% 40% at 20% 20%, rgba(99,102,241,0.12) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 80% 80%, rgba(139,92,246,0.10) 0%, transparent 60%);
+    }
+    .container{width:100%;max-width:400px;}
+
+    /* LOGO */
+    .logo{text-align:center;margin-bottom:36px;}
+    .logo-icon{
+      font-size:3.2rem; display:block; margin-bottom:12px;
+      filter:drop-shadow(0 0 24px rgba(129,140,248,0.7));
+      animation:floatIcon 3s ease-in-out infinite;
+    }
+    @keyframes floatIcon{0%,100%{transform:translateY(0);}50%{transform:translateY(-6px);}}
+    .logo h1{
+      font-size:2rem; font-weight:800; letter-spacing:-0.03em;
+      background:linear-gradient(135deg,#818cf8 0%,#c084fc 100%);
+      -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+    }
+    .logo p{color:var(--muted);font-size:0.85rem;margin-top:6px;}
+
+    /* CARD */
+    .card{
+      background:var(--card); border:1px solid var(--border); border-radius:24px;
+      padding:28px; backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px);
+    }
+    .card-title{font-size:1rem;font-weight:600;margin-bottom:22px;display:flex;align-items:center;gap:8px;}
+
+    /* FORM */
+    .form-group{margin-bottom:18px;}
+    .form-label{
+      display:block; font-size:0.72rem; font-weight:600; color:var(--muted);
+      text-transform:uppercase; letter-spacing:0.07em; margin-bottom:8px;
+    }
+    .form-input{
+      width:100%; background:rgba(255,255,255,0.04); border:1px solid var(--border);
+      border-radius:14px; padding:13px 16px; color:var(--text);
+      font-family:'Inter',sans-serif; font-size:0.95rem; font-weight:500; outline:none;
+      transition:border-color 0.25s, box-shadow 0.25s;
+    }
+    .form-input:focus{border-color:rgba(129,140,248,0.6);box-shadow:0 0 0 3px rgba(99,102,241,0.15);}
+    .form-input::placeholder{color:var(--dim);}
+
+    /* EMOJI */
+    .emoji-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;}
+    .emoji-btn{
+      background:rgba(255,255,255,0.04); border:1px solid var(--border);
+      border-radius:10px; padding:9px 4px; font-size:1.4rem; cursor:pointer;
+      transition:all 0.2s; text-align:center; line-height:1;
+    }
+    .emoji-btn:hover{background:rgba(255,255,255,0.09);transform:scale(1.05);}
+    .emoji-btn.selected{
+      border-color:rgba(129,140,248,0.7); background:rgba(99,102,241,0.18);
+      box-shadow:0 0 0 2px rgba(99,102,241,0.25);
+    }
+
+    /* BUTTONS */
+    .btn-primary{
+      width:100%; padding:15px;
+      background:linear-gradient(135deg,#6366f1,#8b5cf6);
+      border:none; border-radius:14px; color:white;
+      font-family:'Inter',sans-serif; font-size:1rem; font-weight:600;
+      cursor:pointer; transition:all 0.2s; letter-spacing:-0.01em;
+      box-shadow:0 4px 24px rgba(99,102,241,0.35); position:relative; overflow:hidden;
+    }
+    .btn-primary:hover{transform:translateY(-1px);box-shadow:0 8px 32px rgba(99,102,241,0.45);}
+    .btn-danger{
+      width:100%; padding:13px; background:rgba(248,113,113,0.08);
+      border:1px solid rgba(248,113,113,0.25); border-radius:14px; color:var(--red);
+      font-family:'Inter',sans-serif; font-size:0.95rem; font-weight:600;
+      cursor:pointer; transition:all 0.2s; margin-top:12px;
+    }
+    .btn-danger:hover{background:rgba(248,113,113,0.15);}
+
+    /* TRACKING VIEW */
+    .tracking-view{display:none;}
+    .status-badge{
+      display:flex; align-items:center; justify-content:center; gap:10px;
+      padding:12px 20px; background:rgba(74,222,128,0.08);
+      border:1px solid rgba(74,222,128,0.2); border-radius:12px; margin-bottom:22px;
+    }
+    .live-dot{
+      width:10px;height:10px; background:var(--green); border-radius:50%;
+      animation:livePulse 1.6s ease-in-out infinite;
+    }
+    @keyframes livePulse{
+      0%{box-shadow:0 0 0 0 rgba(74,222,128,0.6);}
+      70%{box-shadow:0 0 0 10px rgba(74,222,128,0);}
+      100%{box-shadow:0 0 0 0 rgba(74,222,128,0);}
+    }
+    .status-badge span{font-size:0.88rem;font-weight:600;color:var(--green);}
+
+    .stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px;}
+    .stat-tile{
+      background:rgba(255,255,255,0.04); border:1px solid var(--border);
+      border-radius:14px; padding:14px;
+    }
+    .stat-tile.wide{grid-column:1/-1;}
+    .stat-lbl{font-size:0.68rem;font-weight:600;color:var(--dim);text-transform:uppercase;letter-spacing:0.07em;margin-bottom:6px;}
+    .stat-val{font-size:1.05rem;font-weight:600;color:var(--text);}
+
+    .city-tile{
+      background:linear-gradient(135deg,rgba(99,102,241,0.1),rgba(139,92,246,0.1));
+      border:1px solid rgba(129,140,248,0.2); border-radius:14px;
+      padding:14px 16px; display:flex; align-items:center; gap:12px; margin-bottom:16px;
+    }
+    .city-icon{font-size:1.6rem;}
+    .city-name{font-size:1rem;font-weight:600;}
+    .city-coords{font-size:0.75rem;color:var(--muted);margin-top:2px;font-family:'Courier New',monospace;}
+
+    .battery-bar-wrap{background:rgba(255,255,255,0.06);border-radius:99px;height:6px;margin-top:8px;overflow:hidden;}
+    .battery-bar{height:100%;border-radius:99px;transition:width 0.5s ease;}
+
+    .update-time{text-align:center;font-size:0.73rem;color:var(--dim);margin-top:14px;}
+    .error-box{
+      background:rgba(248,113,113,0.1); border:1px solid rgba(248,113,113,0.3);
+      border-radius:12px; padding:12px 16px; color:var(--red);
+      font-size:0.83rem; margin-top:14px; display:none;
+    }
+    .divider{height:1px;background:var(--border);margin:18px 0;}
+
+    /* SHARE SECTION */
+    .share-box{
+      background:rgba(99,102,241,0.08); border:1px solid rgba(129,140,248,0.2);
+      border-radius:14px; padding:16px; margin-bottom:18px;
+    }
+    .share-box h3{font-size:0.85rem;font-weight:600;margin-bottom:10px;color:var(--accent);}
+    .share-url{
+      background:rgba(0,0,0,0.3); border-radius:10px; padding:10px 14px;
+      font-family:'Courier New',monospace; font-size:0.72rem; color:var(--muted);
+      word-break:break-all; margin-bottom:10px; line-height:1.5;
+    }
+    .btn-copy{
+      width:100%; padding:9px; background:rgba(129,140,248,0.12);
+      border:1px solid rgba(129,140,248,0.25); border-radius:10px;
+      color:var(--accent); font-family:'Inter',sans-serif;
+      font-size:0.82rem; font-weight:600; cursor:pointer; transition:all 0.2s;
+    }
+    .btn-copy:hover{background:rgba(129,140,248,0.2);}
+    .btn-copy.copied{color:var(--green);border-color:rgba(74,222,128,0.3);}
+
+    .qr-wrap{
+      display:flex; justify-content:center; margin-top:12px;
+    }
+    #qr-code{
+      background:white; padding:8px; border-radius:12px;
+      width:120px; height:120px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <div class="logo">
+    <span class="logo-icon">📡</span>
+    <h1>PhoneTracker</h1>
+    <p>Partagez votre position en temps réel</p>
+  </div>
+
+  <!-- VUE ENREGISTREMENT -->
+  <div class="card" id="reg-view">
+    <div class="card-title">⚙️ Configurer cet appareil</div>
+
+    <div class="share-box">
+      <h3>📤 Partager cette page</h3>
+      <div class="share-url" id="tracker-url">Chargement…</div>
+      <button class="btn-copy" id="copy-btn" onclick="copyUrl()">📋 Copier le lien</button>
+      <div class="qr-wrap"><canvas id="qr-code"></canvas></div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Nom de l'appareil</label>
+      <input class="form-input" type="text" id="device-name" placeholder="Ex: iPhone d'Alice" maxlength="30"/>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Icône</label>
+      <div class="emoji-grid" id="emoji-grid"></div>
+    </div>
+
+    <div class="divider"></div>
+    <button class="btn-primary" onclick="startTracking()">🚀 Démarrer le suivi</button>
+    <div class="error-box" id="err-box"></div>
+  </div>
+
+  <!-- VUE TRACKING -->
+  <div class="card tracking-view" id="track-view">
+    <div class="status-badge">
+      <div class="live-dot"></div>
+      <span id="track-title">Position partagée</span>
+    </div>
+
+    <div class="city-tile">
+      <div class="city-icon" id="city-emoji">📍</div>
+      <div>
+        <div class="city-name"  id="city-name">Localisation…</div>
+        <div class="city-coords" id="city-coords">—</div>
+      </div>
+    </div>
+
+    <div class="stats-grid">
+      <div class="stat-tile">
+        <div class="stat-lbl">🎯 Précision</div>
+        <div class="stat-val" id="s-acc">—</div>
+      </div>
+      <div class="stat-tile">
+        <div class="stat-lbl">🚗 Vitesse</div>
+        <div class="stat-val" id="s-speed">—</div>
+      </div>
+      <div class="stat-tile wide">
+        <div class="stat-lbl">🔋 Batterie</div>
+        <div class="stat-val" id="s-bat">Non disponible</div>
+        <div class="battery-bar-wrap" id="bat-wrap" style="display:none">
+          <div class="battery-bar" id="bat-bar" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-danger" onclick="stopTracking()">⏹ Arrêter le suivi</button>
+    <p class="update-time" id="upd-time">En attente de position…</p>
+  </div>
+
+</div>
+
+<script>
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+
+// ID unique persistant
+let deviceId = localStorage.getItem('pt_id');
+if (!deviceId) {
+  deviceId = 'dev_' + Date.now() + '_' + Math.random().toString(36).substr(2,8);
+  localStorage.setItem('pt_id', deviceId);
+}
+
+const EMOJIS = ['📱','💻','⌚','👤','👦','👧','👨','👩','🧑','🕵️','🚶','🏃'];
+let selectedEmoji = localStorage.getItem('pt_emoji') || '📱';
+let watchId = null, batteryObj = null;
+
+// Afficher URL de la page
+document.getElementById('tracker-url').textContent = window.location.href;
+
+// QR Code (librairie légère intégrée)
+function drawQR(canvas, text) {
+  // QR via API publique (image)
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.onload = () => {
+    const ctx = canvas.getContext('2d');
+    canvas.width = 120; canvas.height = 120;
+    ctx.drawImage(img, 0, 0, 120, 120);
+  };
+  img.src = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(text)}`;
+}
+drawQR(document.getElementById('qr-code'), window.location.href);
+
+function copyUrl() {
+  navigator.clipboard.writeText(window.location.href).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = '✅ Copié !';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = '📋 Copier le lien'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+// Build emoji grid
+const grid = document.getElementById('emoji-grid');
+EMOJIS.forEach(e => {
+  const btn = document.createElement('button');
+  btn.className = 'emoji-btn' + (e === selectedEmoji ? ' selected' : '');
+  btn.textContent = e;
+  btn.onclick = () => {
+    document.querySelectorAll('.emoji-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    selectedEmoji = e;
+    localStorage.setItem('pt_emoji', e);
+  };
+  grid.appendChild(btn);
+});
+
+const savedName = localStorage.getItem('pt_name');
+if (savedName) document.getElementById('device-name').value = savedName;
+
+if ('getBattery' in navigator) navigator.getBattery().then(b => batteryObj = b);
+
+function showError(msg) {
+  const el = document.getElementById('err-box');
+  el.textContent = '⚠️ ' + msg;
+  el.style.display = 'block';
+  setTimeout(() => el.style.display = 'none', 5000);
+}
+
+function startTracking() {
+  const name = document.getElementById('device-name').value.trim();
+  if (!name) { showError("Veuillez entrer un nom pour l'appareil"); return; }
+  if (!navigator.geolocation) { showError("Géolocalisation non supportée par ce navigateur"); return; }
+
+  navigator.geolocation.getCurrentPosition(pos => {
+    localStorage.setItem('pt_name', name);
+    document.getElementById('reg-view').style.display   = 'none';
+    document.getElementById('track-view').style.display = 'block';
+    document.getElementById('track-title').textContent   = selectedEmoji + ' ' + name;
+
+    updatePosition(pos, name);
+    watchId = navigator.geolocation.watchPosition(
+      p  => updatePosition(p, name),
+      err => console.warn('GPS:', err.message),
+      { enableHighAccuracy: true, maximumAge: 4000, timeout: 15000 }
+    );
+
+    db.ref('devices/' + deviceId + '/status').onDisconnect().set('offline');
+    db.ref('devices/' + deviceId + '/lastSeen').onDisconnect().set(Date.now());
+
+  }, () => showError("Permission GPS refusée — autorisez la localisation"),
+  { enableHighAccuracy: true, timeout: 12000 });
+}
+
+let geoTimer = null;
+async function updatePosition(pos, name) {
+  const { latitude: lat, longitude: lng, accuracy, speed } = pos.coords;
+  const kmh = speed && speed > 0 ? Math.round(speed * 3.6) : 0;
+  const bat = batteryObj ? Math.round(batteryObj.level * 100) : null;
+  const charging = batteryObj ? batteryObj.charging : false;
+
+  const n  = name || localStorage.getItem('pt_name') || 'Inconnu';
+  const em = localStorage.getItem('pt_emoji') || '📱';
+
+  const data = {
+    id: deviceId, name: n, emoji: em,
+    lat, lng, accuracy: Math.round(accuracy),
+    speed: kmh,
+    status: kmh > 3 ? 'moving' : 'online',
+    timestamp: Date.now(), lastSeen: Date.now(),
+    city: document.getElementById('city-name').textContent || 'Inconnue',
+  };
+  if (bat !== null) { data.battery = bat; data.charging = charging; }
+
+  await db.ref('devices/' + deviceId).set(data);
+
+  // UI
+  document.getElementById('city-coords').textContent = lat.toFixed(5) + ', ' + lng.toFixed(5);
+  document.getElementById('city-emoji').textContent  = em;
+  document.getElementById('s-acc').textContent       = Math.round(accuracy) + ' m';
+  document.getElementById('s-speed').textContent     = kmh > 0 ? kmh + ' km/h' : 'À l\'arrêt';
+  document.getElementById('upd-time').textContent    = '🕒 ' + new Date().toLocaleTimeString('fr-FR');
+
+  if (bat !== null) {
+    document.getElementById('s-bat').textContent     = bat + '%' + (charging ? ' ⚡' : '');
+    document.getElementById('bat-wrap').style.display = 'block';
+    document.getElementById('bat-bar').style.width    = bat + '%';
+    document.getElementById('bat-bar').style.background =
+      bat > 50 ? 'linear-gradient(90deg,#4ade80,#22c55e)'
+      : bat > 20 ? 'linear-gradient(90deg,#fbbf24,#f59e0b)'
+      : 'linear-gradient(90deg,#f87171,#ef4444)';
+  }
+
+  // Reverse geocode (throttled)
+  clearTimeout(geoTimer);
+  geoTimer = setTimeout(async () => {
+    try {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10`,
+        { headers: { 'Accept-Language': 'fr' } }
+      );
+      const geo = await r.json();
+      const city = geo.address?.city || geo.address?.town || geo.address?.village || 'Inconnue';
+      document.getElementById('city-name').textContent = city;
+      await db.ref('devices/' + deviceId + '/city').set(city);
+    } catch(e) {}
+  }, 8000);
+}
+
+function stopTracking() {
+  if (watchId !== null) { navigator.geolocation.clearWatch(watchId); watchId = null; }
+  db.ref('devices/' + deviceId).update({ status: 'offline', lastSeen: Date.now() });
+  document.getElementById('track-view').style.display = 'none';
+  document.getElementById('reg-view').style.display   = 'block';
+}
+</script>
+</body>
+</html>
